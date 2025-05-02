@@ -2,10 +2,10 @@ import torch.nn as nn
 
 
 class simplecnn(nn.Module):
-    def __init__(self, num_class):
+    def __init__(self, num_class=10):
         super().__init__()
         self.features = nn.Sequential(#特征提取
-            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
@@ -14,8 +14,9 @@ class simplecnn(nn.Module):
         )
         #定义全连接层
         self.classifier = nn.Sequential(
-            nn.Linear(32 * 56 * 56, 128),
+            nn.Linear(32 * 7 * 7, 128),
             nn.ReLU(),
+            nn.Dropout(0.5),
             nn.Linear(128,num_class),
         )
         #前向传播部分
