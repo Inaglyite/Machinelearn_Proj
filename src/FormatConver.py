@@ -2,25 +2,6 @@ import os
 import numpy as np
 from PIL import Image
 
-#格式校验
-def convert_to_idx(image_folder, output_prefix):
-    images = []
-    labels = []
-    for filename in os.listdir(image_folder):
-        if filename.endswith(".png"):
-            label = int(filename.split("_")[0])
-            img_path = os.path.join(image_folder, filename)
-            img = Image.open(img_path).convert("L")
-
-            # 强制调整图像为 28x28
-            if img.size != (28, 28):
-                img = img.resize((28, 28))
-
-            img_array = np.array(img).reshape(28, 28)
-            images.append(img_array)
-            labels.append(label)
-
-
 def convert_to_idx(image_folder, output_prefix):
     images = []
     labels = []

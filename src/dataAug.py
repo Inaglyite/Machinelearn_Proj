@@ -57,7 +57,7 @@ def random_augment(image):
 
 
 # 主处理函数
-def augment_dataset(input_dir="custom_mnist", output_dir="custom_mnist2"):
+def augment_dataset(input_dir="custom_mnist2", output_dir="custom_mnist2"):
     os.makedirs(output_dir, exist_ok=True)
 
     for filename in os.listdir(input_dir):

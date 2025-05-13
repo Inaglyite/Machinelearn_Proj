@@ -7,14 +7,11 @@ from tqdm import tqdm
 import os
 from src.CNN import simplecnn
 
-import numpy as np
-import torch
-from torch.utils.data import Dataset
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-
+import matplotlib.pyplot as plt
 
 class CustomMNIST(Dataset):
     def __init__(self, img_file, label_file, transform=None):
@@ -50,26 +47,32 @@ class CustomMNIST(Dataset):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# 训练集预处理（将自定义数据从白底黑字 → 黑底白字）
 train_transformer = transforms.Compose([
-    transforms.ToTensor(),#图片转换为tensor张量
+    transforms.ToTensor(),
+    #transforms.Lambda(lambda x: 1.0 - x),  # 关键：颜色反转
     transforms.Normalize((0.1307,), (0.3081,))
-
 ])
 
+# 测试集预处理（保持 MNIST 原始颜色：黑底白字）
 test_transformer = transforms.Compose([
-    transforms.ToTensor(),  # 图片转换为tensor张量
+    transforms.ToTensor(),
     transforms.Normalize((0.1307,), (0.3081,))
-
 ])
 
 #加载训练集和数据集
 # 加载MNIST数据集
-trainset = CustomMNIST(
-    img_file='./Mydata/custom_mnist2-images-idx3-ubyte',
-    label_file='./Mydata/custom_mnist2-labels-idx1-ubyte',
+'''trainset = CustomMNIST(
+    img_file='Mydata/custom_mnist2-images-idx3-ubyte',
+    label_file='Mydata/custom_mnist2-labels-idx1-ubyte',
+    transform=train_transformer
+)'''
+trainset = datasets.MNIST(
+    root='./data',
+    train=True,
+    download=True,
     transform=train_transformer
 )
-
 testset = datasets.MNIST(
     root='./data',
     train=False,
@@ -130,12 +133,14 @@ def save_model(model, save_path):
     torch.save(model.state_dict(), save_path)
 
 if __name__=='__main__':
-    num_epochs = 20
+    num_epochs = 10
     learning_rate = 0.001
-    num_class =20
+    num_class = 10
     save_path = r"model_pth/best.pth"
     model = simplecnn(num_class).to(device)# 实例化
     criterion = nn.CrossEntropyLoss() #指定损失函数为交叉熵损失
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     train(model, train_loader, criterion, optimizer, num_epochs)
     evaluate(model, test_loader, criterion)
+
+#司马训练器赶紧给老子把正确率提上来啊awei
