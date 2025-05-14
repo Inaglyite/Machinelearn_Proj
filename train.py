@@ -7,29 +7,72 @@ from tqdm import tqdm
 import os
 from src.CNN import simplecnn
 
+
+import numpy as np
+import torch
+from torch.utils.data import Dataset
+import matplotlib.pyplot as plt
+
+class CustomMNIST(Dataset):
+    def __init__(self, img_file, label_file, transform=None):
+        # 读取图像文件
+        with open(img_file, 'rb') as f_img:
+            magic = int.from_bytes(f_img.read(4), byteorder='big')
+            num_images = int.from_bytes(f_img.read(4), byteorder='big')
+            rows = int.from_bytes(f_img.read(4), byteorder='big')
+            cols = int.from_bytes(f_img.read(4), byteorder='big')
+            images_data = np.frombuffer(f_img.read(), dtype=np.uint8).copy()
+
+        # 读取标签文件
+        with open(label_file, 'rb') as f_lbl:
+            magic = int.from_bytes(f_lbl.read(4), byteorder='big')
+            num_labels = int.from_bytes(f_lbl.read(4), byteorder='big')
+            labels_data = np.frombuffer(f_lbl.read(), dtype=np.uint8).copy()
+
+        # 保持为 NumPy 数组
+        self.images = images_data.reshape(num_images, rows, cols)  # [N, H, W]
+        self.labels = labels_data
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        image = self.images[idx]  # 此时为 uint8 类型 [H, W]
+        image = image.astype(np.float32)  # 转为 float32
+        label = self.labels[idx]
+        if self.transform:
+            image = self.transform(image)  # 应用 ToTensor + Normalize
+        return image, label
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# 训练集预处理（将自定义数据从白底黑字 → 黑底白字）
 train_transformer = transforms.Compose([
-    transforms.ToTensor(),#图片转换为tensor张量
+    transforms.ToTensor(),
+    #transforms.Lambda(lambda x: 1.0 - x),  # 关键：颜色反转
     transforms.Normalize((0.1307,), (0.3081,))
-
 ])
 
+# 测试集预处理（保持 MNIST 原始颜色：黑底白字）
 test_transformer = transforms.Compose([
-    transforms.ToTensor(),  # 图片转换为tensor张量
+    transforms.ToTensor(),
     transforms.Normalize((0.1307,), (0.3081,))
-
 ])
 
 #加载训练集和数据集
 # 加载MNIST数据集
+'''trainset = CustomMNIST(
+    img_file='Mydata/custom_mnist2-images-idx3-ubyte',
+    label_file='Mydata/custom_mnist2-labels-idx1-ubyte',
+    transform=train_transformer
+)'''
 trainset = datasets.MNIST(
     root='./data',
     train=True,
     download=True,
     transform=train_transformer
 )
-
 testset = datasets.MNIST(
     root='./data',
     train=False,
@@ -92,10 +135,12 @@ def save_model(model, save_path):
 if __name__=='__main__':
     num_epochs = 10
     learning_rate = 0.001
-    num_class =10
+    num_class = 10
     save_path = r"model_pth/best.pth"
     model = simplecnn(num_class).to(device)# 实例化
     criterion = nn.CrossEntropyLoss() #指定损失函数为交叉熵损失
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     train(model, train_loader, criterion, optimizer, num_epochs)
     evaluate(model, test_loader, criterion)
+
+#司马训练器赶紧给老子把正确率提上来啊awei
