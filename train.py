@@ -50,7 +50,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # 训练集预处理（将自定义数据从白底黑字 → 黑底白字）
 train_transformer = transforms.Compose([
     transforms.ToTensor(),
-    #transforms.Lambda(lambda x: 1.0 - x),  # 关键：颜色反转
+    transforms.Lambda(lambda x: 1.0 - x),  # 关键：颜色反转
     transforms.Normalize((0.1307,), (0.3081,))
 ])
 
@@ -62,17 +62,18 @@ test_transformer = transforms.Compose([
 
 #加载训练集和数据集
 # 加载MNIST数据集
-'''trainset = CustomMNIST(
+trainset = CustomMNIST(
     img_file='Mydata/custom_mnist2-images-idx3-ubyte',
     label_file='Mydata/custom_mnist2-labels-idx1-ubyte',
     transform=train_transformer
-)'''
+)
+'''
 trainset = datasets.MNIST(
     root='./data',
     train=True,
     download=True,
     transform=train_transformer
-)
+)'''
 testset = datasets.MNIST(
     root='./data',
     train=False,
@@ -105,7 +106,8 @@ def train(model, train_loader, criterion, optimizer, num_epoch):
         if accuracy > best_acc:
             best_acc = accuracy
             os.makedirs("model_pth", exist_ok=True)
-            save_model(model, save_path="model_pth/best.pth")
+            torch.save(model, r"model_pth\best.pth")
+            torch.save(model.state_dict(), "model_pth/best_state_dict.pth")
             print("model saved with best acc", best_acc)
 
 
@@ -142,5 +144,3 @@ if __name__=='__main__':
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     train(model, train_loader, criterion, optimizer, num_epochs)
     evaluate(model, test_loader, criterion)
-
-#司马训练器赶紧给老子把正确率提上来啊awei
