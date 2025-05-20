@@ -15,7 +15,7 @@ class MNISTDrawApp:
         self.root.geometry("450x350")
 
         # 模型路径（需修改为实际路径）
-        self.model_path = r"D:\ProjectSava\PythonProj\Machinelearn_Proj\model_pth\best_state_dict.pth"
+        self.model_path = r"C:\Users\Lenovo\PycharmProjects\Machinelearn_Proj\model_pth\best_state_dict.pth"
 
         # 初始化界面
         self.init_ui()

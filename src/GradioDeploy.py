@@ -1,107 +1,121 @@
-# 这个文件的作用是部署Gradio
 import gradio as gr
 import torch
+import torch.nn as nn
 import numpy as np
-from torchvision import transforms
 from PIL import Image
-from CNN import simplecnn  # 确保从你的模型文件中导入
+from torchvision import transforms
 
-# 加载训练好的模型
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = simplecnn(num_class=10).to(device)
 
-# 修正后的模型路径（使用原始字符串）
-model_path = r"D:\ProjectSava\PythonProj\Machinelearn_Proj\model_pth\best.pth"
-try:
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
-    print("模型加载成功")
-except Exception as e:
-    print(f"模型加载失败: {e}")
+# ====================== 1. 模型定义与加载 ======================
+class SimpleCNN(nn.Module):
+    def __init__(self, num_class=10):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 16, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(16, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(32 * 7 * 7, 128),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(128, num_class))
 
-# 定义预处理流程
-transform = transforms.Compose([
-    transforms.Resize((28, 28)),  # 确保图片大小为28x28
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        return self.classifier(x)
+
+
+model = SimpleCNN()
+model.load_state_dict(torch.load(
+    r"C:\Users\Lenovo\PycharmProjects\Machinelearn_Proj\model_pth\best_state_dict.pth",
+    map_location="cpu"
+))
+model.eval()
+
+# ====================== 2. 图像预处理管道 ======================
+preprocess = transforms.Compose([
+    transforms.Resize((28, 28)),
+    transforms.Grayscale(),
     transforms.ToTensor(),
-    transforms.Lambda(lambda x: 1.0 - x),  # MNIST数据集的反色处理
     transforms.Normalize((0.1307,), (0.3081,))
 ])
 
 
-def recognize_digit(image_data):
-    print("Debug: 输入数据结构 =", image_data.keys() if image_data else "None")
-
-    if not image_data or "composite" not in image_data or image_data["composite"] is None:
-        return "请绘制数字"
+# ====================== 3. 预测函数 ======================
+def predict_digit(img):
+    if img is None:
+        return {"预测结果": "---", "置信度": "---"}
 
     try:
-        composite_data = image_data["composite"]
-        print("Debug: composite 数据类型 =", type(composite_data))
-        print("Debug: composite 数据 =", composite_data)
+        # 关键修改：手动颜色反转
+        img = 255 - np.array(img)  # 白底黑字转黑底白字
+        pil_img = Image.fromarray(img).convert("L")  # 确保灰度
 
-        # 检查 composite 数据是否有效
-        if composite_data is None:
-            return "绘制的图像数据为空，请重新绘制"
+        # 调试用：保存中间图像
+        # pil_img.save("debug_input.png")
 
-        # 保存 composite 数据为图像
-        composite_array = np.array(composite_data).astype('uint8')
-        Image.fromarray(composite_array).save("debug_composite_image.png")
-        print("Debug: composite 图像已保存为 debug_composite_image.png")
+        input_tensor = preprocess(pil_img).unsqueeze(0)
 
-        # 转换为 NumPy 数组
-        image_array = np.array(composite_data).astype('uint8')
-        print("Debug: 图像数组形状 =", image_array.shape)
-
-        # 转换为PIL图像并预处理
-        image = Image.fromarray(image_array).convert('L')
-        print("Debug: PIL图像大小 =", image.size)
-
-        # 保存原始输入图像
-        image.save("debug_original_input.png")
-        print("Debug: 原始输入图像已保存为 debug_original_input.png")
-
-        # 预处理图像
-        image = transform(image).unsqueeze(0).to(device)
-        print("Debug: 预处理后的图像张量形状 =", image.shape)
-
-        # 保存预处理后的图像
-        from torchvision.utils import save_image
-        save_image(image, "debug_preprocessed_image.png")
-        print("Debug: 预处理后的图像已保存为 debug_preprocessed_image.png")
-
-        # 模型推理
         with torch.no_grad():
-            output = model(image)
-            print("Debug: 模型原始输出 =", output)
+            outputs = model(input_tensor)
+            prob, pred = torch.max(outputs.softmax(dim=1), 1)
 
-            prob = torch.nn.functional.softmax(output, dim=1)[0]
-            print("Debug: Softmax 概率 =", prob)
-
-            pred = torch.argmax(prob).item()
-            print("Debug: 预测结果 =", pred)
-
-        result = [f"预测数字：{pred}（置信度：{prob[pred].item() * 100:.1f}%）"]
-        result += [f"{i}: {prob[i].item() * 100:.1f}%" for i in range(10)]
-        return "\n".join(result)
+        return {
+            "预测结果": str(pred.item()),
+            "置信度": f"{prob.item():.2%}"
+        }
     except Exception as e:
-        print(f"发生错误: {e}")
-        return f"发生错误：{str(e)}"
+        return {"预测结果": "错误", "置信度": str(e)}
 
-# 创建Gradio界面
-interface = gr.Interface(
-    fn=recognize_digit,
-    inputs=gr.Sketchpad(
-        height=280,
-        width=280,
-        brush=gr.Brush(colors=["black"]),
-        image_mode="L"
-    ),
-    outputs=gr.Textbox(label="识别结果"),
-    title="手写数字识别",
-    description="在左侧画布书写0-9数字，右侧显示识别结果",
-    flagging_mode="never"
-)
 
+# ====================== 4. 构建Gradio界面 ======================
+with gr.Blocks(title="MNIST识别", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# 🎨 MNIST手写数字识别系统")
+
+    with gr.Row():
+        # 绘图区域（关键配置）
+        with gr.Column():
+            canvas = gr.Image(
+                label="绘制区域",
+                height=280,
+                width=280,
+                image_mode="L",
+                tool="sketch",
+                brush_radius=12,
+                show_download_button=False,
+                invert_colors=True  # 确保画布显示白底黑字
+            )
+
+        # 结果展示
+        with gr.Column():
+            output = gr.Label(
+                label="识别结果",
+                value={"预测结果": "---", "置信度": "---"},
+                num_top_classes=1
+            )
+
+    # 控制按钮
+    with gr.Row():
+        clear_btn = gr.Button("清空画布", variant="secondary")
+        predict_btn = gr.Button("开始识别", variant="primary")
+
+    # 事件绑定
+    predict_btn.click(
+        fn=predict_digit,
+        inputs=canvas,
+        outputs=output
+    )
+
+    clear_btn.click(
+        fn=lambda: [None, {"预测结果": "---", "置信度": "---"}],
+        outputs=[canvas, output]
+    )
+
+# ====================== 5. 启动应用 ======================
 if __name__ == "__main__":
-    print("启动 Gradio 应用...")
-    interface.launch(share=True)
+    demo.launch(server_port=7860)
